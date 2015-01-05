@@ -1,43 +1,93 @@
-
 import webapp2
 import json
 import urllib2
+import os
+import jinja2
+from google.appengine.ext import db
 
-class MainHandler(webapp2.RequestHandler):
+template_dir = os.path.join(os.path.dirname(__file__), 'templates')
+jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
+                               autoescape = True)
+
+global scoresjson, matchesjson
+scoresjson = {"scores" : {}}
+matchesjson   = {"matches" : []}
+
+class Handler(webapp2.RequestHandler):
+    def write(self, *a, **kw):
+        self.response.out.write(*a,**kw)
+
+    def render_str(self, template, **params):
+        t = jinja_env.get_template(template)
+        return t.render(params)
+    
+    def render(self, template, **kw):
+        self.write(self.render_str(template, **kw))
+
+class MainHandler(Handler):
     def get(self):
-        jsondata ={"scores" : 
-                      {"berkeley" : 172, "branford" : 345, "calhoun" : 128, "davenport" : 670,
-                       "erzastiles" : 659, "johnathanedwards" : 234, "morse" : 546, "silliman" : 123,
-                       "timothydwight" : 782, "trumbull" : 1543},
+      self.write("Main Page")
 
-                  "matches" : 
-                      {1 : {"team1" : "berkeley", "team2" : "saybrook", "date" :
-                       {"month" : 11, "day" : 13, "hour" : 17, "minutes" : 30},
-                        "sport" : "Frisbee", "location" : "IM Fields"},
+class UpdateScoresHandler(Handler):
+  def get(self):
+      self.render("updateScores.html")
+  def post(self):
+      scoresjson["scores"]["berkeley"] = self.request.get("berkeley")
+      scoresjson["scores"]["branford"] = self.request.get("branford")
+      scoresjson["scores"]["calhoun"] = self.request.get("calhoun")
+      scoresjson["scores"]["davenport"] = self.request.get("davenport")
+      scoresjson["scores"]["erzastiles"] = self.request.get("erzastiles")
+      scoresjson["scores"]["johnathanedwards"] = self.request.get("johnathanedwards")
+      scoresjson["scores"]["morse"] = self.request.get("morse")
+      scoresjson["scores"]["pierson"] = self.request.get("pierson")
+      scoresjson["scores"]["saybrook"] = self.request.get("saybrook")
+      scoresjson["scores"]["silliman"] = self.request.get("silliman")
+      scoresjson["scores"]["timothydwight"] = self.request.get("timothydwight")
+      scoresjson["scores"]["trumbull"] = self.request.get("trumbull")
 
-                       2 : {"team1" : "davenport", "team2" : "timothydwight", "date" :
-                       {"month" : 11, "day" : 16, "hour" : 15, "minutes" : 30},
-                        "sport" : "Soccer", "location" : "IM Fields"},
+      self.redirect("/")
 
-                       3 : {"team1" : "silliman", "team2" : "saybrook", "date" :
-                       {"month" : 12, "day" : 2, "hour" : 9, "minutes" : 25},
-                        "sport" : "Tennis", "location" : "IM Courts"},
+class UpdateMatchesHandler(Handler):
+  def get(self):
+      self.render("updateMatches.html")
+  def post(self):
+      match = {}
+      match["team1"] = self.request.get("team1")
+      match["team2"] = self.request.get("team2")
+      match["date"]  = {"year"  : self.request.get("year"),
+                        "month" : self.request.get("month"),
+                        "day" : self.request.get("day"),
+                        "hour" : self.request.get("hour"),
+                        "minutes": self.request.get("minutes")}
+      match["sport"] = self.request.get("sport")
+      match["location"] = self.request.get("location")
 
-                       4 : {"team1" : "pierson", "team2" : "morse", "date" :
-                       {"month" : 2, "day" : 25, "hour" : 16, "minutes" : 45},
-                        "sport" : "Football", "location" : "IM Fields"},
+      matchesjson["matches"].append(match)
+      self.redirect("/")
+      
+class ScoresHandler(webapp2.RequestHandler):
+    def get(self):
+        self.response.out.write(json.dumps(scoresjson))
 
-                       5 : {"team1" : "trumbull", "team2" : "calhoun", "date" :
-                       {"month" : 2, "day" : 28, "hour" : 17, "minutes" : 45},
-                        "sport" : "Frisbee", "location" : "IM Fields"},
+class MatchesHandler(webapp2.RequestHandler):
+    def get(self):
+        self.response.out.write(json.dumps(matchesjson))
 
-                       6 : {"team1" : "johnathanedwards", "team2" : "timothydwight", "date" :
-                       {"month" : 5, "day" : 13, "hour" : 7, "minutes" : 30},
-                        "sport" : "Intertube Water Polo", "location" : "IM Pool"}
-                      }
-                  }
-        self.response.out.write(json.dumps(jsondata))
+class FlushHandler(webapp2.RequestHandler):
+    def get(self):
+      global scoresjson, matchesjson
+      scoresjson = {"scores": {}}
+      matchesjson = {"matches": []}
+      self.redirect("/")
       
 app = webapp2.WSGIApplication([
-    ('/', MainHandler)
+    ('/', MainHandler),
+    ('/matches', UpdateMatchesHandler),
+    ('/scores', UpdateScoresHandler),
+    ('/scores.json', ScoresHandler),
+    ('/matches.json', MatchesHandler),
+    ('/flush', FlushHandler)
 ], debug=True)
+
+
+      
