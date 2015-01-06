@@ -12,6 +12,7 @@ jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
 global scoresjson, matchesjson
 scoresjson = {"scores" : {}}
 matchesjson   = {"matches" : []}
+teamsjson = {"teams": []}
 
 class Handler(webapp2.RequestHandler):
     def write(self, *a, **kw):
@@ -63,7 +64,21 @@ class UpdateMatchesHandler(Handler):
       match["location"] = self.request.get("location")
 
       matchesjson["matches"].append(match)
-      self.redirect("/")
+      self.redirect("/matches")
+
+class UpdateTeamsHandler(Handler):
+  def get(self):
+      self.render("updateTeams.html")
+  def post(self):
+      team = {}
+      team["college"] = self.request.get("college")
+      team["sport"] = self.request.get("sport")
+      team["email"] = self.request.get("email")
+      team["wins"] = self.request.get("wins")
+      team["losses"] = self.request.get("losses")
+
+      teamsjson["teams"].append(team)
+      self.redirect("/teams")
       
 class ScoresHandler(webapp2.RequestHandler):
     def get(self):
@@ -72,6 +87,10 @@ class ScoresHandler(webapp2.RequestHandler):
 class MatchesHandler(webapp2.RequestHandler):
     def get(self):
         self.response.out.write(json.dumps(matchesjson))
+
+class TeamsHandler(webapp2.RequestHandler):
+    def get(self):
+        self.response.out.write(json.dumps(teamsjson))
 
 class FlushHandler(webapp2.RequestHandler):
     def get(self):
@@ -82,10 +101,12 @@ class FlushHandler(webapp2.RequestHandler):
       
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
-    ('/matches', UpdateMatchesHandler),
     ('/scores', UpdateScoresHandler),
+    ('/matches', UpdateMatchesHandler),
+    ('/teams', UpdateTeamsHandler),
     ('/scores.json', ScoresHandler),
     ('/matches.json', MatchesHandler),
+    ('/teams.json', TeamsHandler),
     ('/flush', FlushHandler)
 ], debug=True)
 
