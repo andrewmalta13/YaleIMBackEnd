@@ -4,7 +4,7 @@ import urllib2
 import os
 import jinja2
 import ast
-from google.appengine.ext import db
+from google.appengine.ext import ndb
 
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
@@ -12,23 +12,23 @@ jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
 
 
 
-class Match(db.Model):
-  team1 = db.StringProperty(required=True)
-  team2 = db.StringProperty(required=True)
-  date = db.TextProperty(required=True)
-  sport = db.StringProperty(required=True)
-  location = db.StringProperty(required=True)
+class Match(ndb.Model):
+    team1 = ndb.StringProperty()
+    team2 = ndb.StringProperty()
+    date = ndb.TextProperty()
+    sport = ndb.StringProperty()
+    location = ndb.StringProperty()
 
-class Team(db.Model):
-  college = db.StringProperty(required=True)
-  sport = db.StringProperty(required=True)
-  email = db.EmailProperty(required=True)
-  wins = db.IntegerProperty(required=True)
-  losses = db.IntegerProperty(required=True)
+class Team(ndb.Model):
+    college = ndb.StringProperty()
+    sport = ndb.StringProperty()
+    email = ndb.StringProperty()
+    wins = ndb.IntegerProperty()
+    losses = ndb.IntegerProperty()
 
-class Scores(db.Model):
-  scores = db.TextProperty(required=True)
-  timeSubmitted = db.DateTimeProperty(auto_now_add=True)
+class Scores(ndb.Model):
+    scores = ndb.TextProperty()
+    timeSubmitted = ndb.DateTimeProperty(auto_now_add=True)
 
 
 class Handler(webapp2.RequestHandler):
@@ -49,6 +49,8 @@ class Handler(webapp2.RequestHandler):
         dtstring = dtstring.replace(":", "-")
         return dtstring.split("-")
 
+        
+
 class MainHandler(Handler):
     def get(self):
       self.write("Main Page")
@@ -57,7 +59,6 @@ class UpdateScoresHandler(Handler):
   def get(self):
       self.render("updateScores.html")
   def post(self):
-
       
       scoresjson = {"scores": {}}
       scoresjson["scores"]["berkeley"] = int(self.request.get("berkeley"))
@@ -76,7 +77,7 @@ class UpdateScoresHandler(Handler):
       s = Scores(scores = str(scoresjson))
       s.put()
 
-      #self.redirect("/")
+      self.redirect("/")
 
 class UpdateMatchesHandler(Handler):
   def get(self):
@@ -98,33 +99,33 @@ class UpdateMatchesHandler(Handler):
       self.redirect("/matches")
 
 class UpdateTeamsHandler(Handler):
-  def get(self):
-      self.render("updateTeams.html")
-  def post(self):
-      team = Team(college = self.request.get("college"), sport = self.request.get("sport"),
+    def get(self):
+        self.render("updateTeams.html")
+    def post(self):
+        team = Team(college = self.request.get("college"), sport = self.request.get("sport"),
         email = self.request.get("email"), wins = int(self.request.get("wins")),
         losses = int(self.request.get("losses")))
 
-      team.put()
+        team.put()
 
-      self.redirect("/teams")
+        self.redirect("/teams")
       
 class ScoresHandler(webapp2.RequestHandler):
     def get(self):
-        scores = Scores.all() 
 
-        self.response.out.write(str(scores))
-        if scores.count() > 0:
-            scores.order("-timeSubmitted")
+        scores = list(ndb.gql("SELECT * FROM Scores ORDER BY timeSubmitted DESC limit 1"))
+        if len(scores) > 0:
+            memcache.add("scores", scores)
             self.response.out.write(json.dumps(ast.literal_eval(scores[0].scores)))
         else:
             self.response.out.write(json.dumps("{scores: {}}"))
 
+
 class MatchesHandler(webapp2.RequestHandler):
     def get(self):
-        matches = Match.all()
         matchesjson = {"matches": []}
-        
+        matches = list(ndb.gql("SELECT * FROM Match")) 
+
         for match in matches:
             matchesjson["matches"].append({"team1": match.team1,
                                 "team2": match.team2,
@@ -136,9 +137,10 @@ class MatchesHandler(webapp2.RequestHandler):
 
 class TeamsHandler(webapp2.RequestHandler):
     def get(self):
-        teams = Team.all()
         teamsjson = {"teams": []}
 
+        teams = list(ndb.gql("SELECT * FROM Team")) 
+           
         for team in teams:
             teamsjson["teams"].append({"college": team.college,
                               "sport": team.sport,
@@ -148,12 +150,13 @@ class TeamsHandler(webapp2.RequestHandler):
 
         self.response.out.write(json.dumps(teamsjson))
 
+#clear all data in the datastore (will be deleted before deployment)
 class FlushHandler(webapp2.RequestHandler):
     def get(self):
       s = Scores.all()
       m = Match.all()
       t = Team.all()
-
+      
       for scores in s:
         scores.delete()
       for matches in m:
@@ -162,6 +165,8 @@ class FlushHandler(webapp2.RequestHandler):
         teams.delete()
 
       self.redirect("/")
+
+
       
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
